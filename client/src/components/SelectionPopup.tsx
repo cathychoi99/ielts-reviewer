@@ -14,17 +14,15 @@ export default function SelectionPopup({ materialId, containerRef, onAdded }: Pr
   const [saving, setSaving] = useState(false);
   const popupRef = useRef<HTMLDivElement>(null);
 
-  const tryShowPopup = useCallback(() => {
+  const updatePopup = useCallback(() => {
     const container = containerRef.current;
     if (!container || saving) return;
     const selection = window.getSelection();
     const text = selection?.toString().trim();
-    if (!text || text.length === 0) {
+    if (!text || !selection?.rangeCount) {
       setShow(false);
       return;
     }
-    // Make sure selection is inside our container
-    if (!selection?.rangeCount) return;
     const range = selection.getRangeAt(0);
     if (!container.contains(range.commonAncestorContainer)) return;
 
@@ -32,7 +30,7 @@ export default function SelectionPopup({ materialId, containerRef, onAdded }: Pr
     const containerRect = container.getBoundingClientRect();
     setPos({
       x: rect.left + rect.width / 2 - containerRect.left,
-      y: rect.top - containerRect.top - 8,
+      y: rect.bottom - containerRect.top + 8,
     });
     setSelectedText(text);
     setShow(true);
@@ -42,37 +40,52 @@ export default function SelectionPopup({ materialId, containerRef, onAdded }: Pr
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const handleMouseUp = () => requestAnimationFrame(tryShowPopup);
-    container.addEventListener('mouseup', handleMouseUp);
-    return () => container.removeEventListener('mouseup', handleMouseUp);
-  }, [containerRef, tryShowPopup]);
+    const handle = () => requestAnimationFrame(updatePopup);
+    container.addEventListener('mouseup', handle);
+    return () => container.removeEventListener('mouseup', handle);
+  }, [containerRef, updatePopup]);
 
-  // Mobile: selectionchange fires when user adjusts selection handles
+  // Mobile: selectionchange — only update position, don't hide during active selection
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    let debounceTimer: ReturnType<typeof setTimeout>;
-    const handleSelectionChange = () => {
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const handle = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
         const selection = window.getSelection();
         const text = selection?.toString().trim();
-        if (!text || !selection?.rangeCount) {
-          setShow(false);
-          return;
-        }
+        if (!text || !selection?.rangeCount) return;
         const range = selection.getRangeAt(0);
         if (container.contains(range.commonAncestorContainer)) {
-          tryShowPopup();
+          updatePopup();
         }
-      }, 300);
+      }, 200);
     };
-    document.addEventListener('selectionchange', handleSelectionChange);
+    document.addEventListener('selectionchange', handle);
     return () => {
-      clearTimeout(debounceTimer);
-      document.removeEventListener('selectionchange', handleSelectionChange);
+      clearTimeout(timer);
+      document.removeEventListener('selectionchange', handle);
     };
-  }, [containerRef, tryShowPopup]);
+  }, [containerRef, updatePopup]);
+
+  // Dismiss when selection is cleared (separate check)
+  useEffect(() => {
+    if (!show) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const checkClear = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const text = window.getSelection()?.toString().trim();
+        if (!text) setShow(false);
+      }, 400);
+    };
+    document.addEventListener('selectionchange', checkClear);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('selectionchange', checkClear);
+    };
+  }, [show]);
 
   // Dismiss on outside click/touch
   useEffect(() => {
@@ -85,7 +98,7 @@ export default function SelectionPopup({ materialId, containerRef, onAdded }: Pr
     const timer = setTimeout(() => {
       document.addEventListener('mousedown', handleDismiss);
       document.addEventListener('touchstart', handleDismiss);
-    }, 100);
+    }, 200);
     return () => {
       clearTimeout(timer);
       document.removeEventListener('mousedown', handleDismiss);
@@ -113,7 +126,7 @@ export default function SelectionPopup({ materialId, containerRef, onAdded }: Pr
     <div
       ref={popupRef}
       className="absolute z-50"
-      style={{ left: pos.x, top: pos.y, transform: 'translate(-50%, -100%)' }}
+      style={{ left: pos.x, top: pos.y, transform: 'translateX(-50%)' }}
     >
       <button
         onMouseDown={(e) => e.preventDefault()}
