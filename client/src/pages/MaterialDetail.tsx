@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import type { MaterialDetail as MaterialDetailType, Extraction, ExtractionType } from '../../../shared/types';
-import { getMaterial, getMaterialExtractions, parseMaterial, updateMastery, deleteExtraction } from '../api';
+import { getMaterial, getMaterialExtractions, parseMaterial, updateMastery, deleteExtraction, deleteMaterial } from '../api';
 import ExtractionCard from '../components/ExtractionCard';
 import SelectionPopup from '../components/SelectionPopup';
 import { highlightText } from '../utils/highlight';
@@ -22,6 +22,7 @@ const TAG_LABELS: Record<string, string> = {
 
 export default function MaterialDetail() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const textContainerRef = useRef<HTMLDivElement>(null);
   const [material, setMaterial] = useState<MaterialDetailType | null>(null);
   const [extractions, setExtractions] = useState<Extraction[]>([]);
@@ -103,10 +104,21 @@ export default function MaterialDetail() {
     }
   };
 
-  const handleDelete = async (extId: number) => {
+  const handleDeleteExtraction = async (extId: number) => {
     try {
       await deleteExtraction(extId);
       setExtractions((prev) => prev.filter((e) => e.id !== extId));
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleDeleteMaterial = async () => {
+    if (!id) return;
+    if (!window.confirm('确定要删除这篇材料吗？所有摘录也会一起删除。')) return;
+    try {
+      await deleteMaterial(Number(id));
+      navigate('/');
     } catch {
       // ignore
     }
@@ -150,6 +162,12 @@ export default function MaterialDetail() {
           </span>
         </div>
         <h1 className="font-serif text-2xl text-text-primary">{material.title}</h1>
+        <button
+          onClick={handleDeleteMaterial}
+          className="mt-2 font-mono text-[10px] uppercase tracking-[1px] text-text-quaternary hover:text-red-500 transition-colors"
+        >
+          删除材料
+        </button>
       </div>
 
       {/* Parse controls */}
@@ -256,7 +274,7 @@ export default function MaterialDetail() {
                   key={ext.id}
                   extraction={ext}
                   onToggleMastery={handleToggleMastery}
-                  onDelete={handleDelete}
+                  onDelete={handleDeleteExtraction}
                 />
               ))}
             </div>
