@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { SourceTag } from '../../../shared/types';
-import { createMaterial } from '../api';
+import { createMaterial, parseMaterial } from '../api';
 import { isValidFileExtension } from '../utils/validation';
 
 const SOURCE_TAGS: { value: SourceTag; label: string }[] = [
@@ -51,6 +51,8 @@ export default function AddMaterial() {
     setSubmitting(true);
     try {
       const mat = await createMaterial({ title: title.trim(), sourceTag, content: content.trim() });
+      // Auto-trigger parsing (fire and forget — detail page will poll status)
+      parseMaterial(mat.id).catch(() => {});
       navigate(`/materials/${mat.id}`);
     } catch (e: unknown) {
       setErrors({ content: e instanceof Error ? e.message : '提交失败' });
