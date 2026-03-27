@@ -72,7 +72,7 @@ export default function MaterialLibrary() {
                   {mat.parseStatus === 'done' ? '已解析' : mat.parseStatus === 'parsing' ? '解析中' : ''}
                 </span>
               </div>
-              <h2 className="font-serif text-lg text-text-primary mb-2 line-clamp-2">
+              <h2 className="font-serif text-lg text-text-primary mb-2 line-clamp-2 min-h-[3.5rem]">
                 {mat.title}
               </h2>
               <div className="flex items-center justify-between">
