@@ -115,9 +115,7 @@ export function updateMastery(id: number, mastered: boolean): Promise<Extraction
 
 export function createExtraction(data: {
   materialId: number;
-  type: 'vocabulary' | 'collocation' | 'sentence';
-  data: Record<string, string>;
-  priority?: string;
+  text: string;
 }): Promise<Extraction> {
   return request<Extraction>('/extractions', {
     method: 'POST',

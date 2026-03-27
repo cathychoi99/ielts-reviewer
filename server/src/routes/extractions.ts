@@ -45,24 +45,79 @@ router.get('/', async (req, res) => {
   } catch { return res.status(500).json({ error: '服务器内部错误' }); }
 });
 
-// POST /api/extractions — manual extraction creation
+// POST /api/extractions — smart extraction: AI auto-detects type and generates details
 router.post('/', async (req, res) => {
   try {
-    const { materialId, type, data, priority } = req.body;
+    const { materialId, text } = req.body;
     if (!materialId) return res.status(400).json({ error: 'materialId 不能为空' });
-    if (!type || !VALID_TYPES.includes(type)) return res.status(400).json({ error: '无效的摘录类型' });
-    if (!data) return res.status(400).json({ error: 'data 不能为空' });
+    if (!text || typeof text !== 'string' || text.trim().length === 0) return res.status(400).json({ error: 'text 不能为空' });
 
     const mat = await queryOne('SELECT id FROM materials WHERE id = ?', materialId);
     if (!mat) return res.status(404).json({ error: '材料不存在' });
 
+    // Get AI settings
+    const settings = await queryOne('SELECT api_key, api_base_url, band_level FROM settings WHERE id = 1');
+    const apiKey = (settings as any)?.api_key;
+    const apiBaseUrl = (settings as any)?.api_base_url;
+
+    if (!apiKey) {
+      return res.status(422).json({ error: '请先在设置中配置 AI API Key' });
+    }
+
+    // Use AI to analyze the selected text
+    const OpenAI = (await import('openai')).default;
+    const client = new OpenAI({ apiKey, baseURL: apiBaseUrl, timeout: 15_000 });
+
+    const response = await client.chat.completions.create({
+      model: 'deepseek-chat',
+      messages: [
+        {
+          role: 'system',
+          content: `你是一个雅思备考助手。用户选中了一段英文文本，请判断它是词汇(vocabulary)、词组(collocation)还是句子(sentence)，并生成对应的学习摘录。
+
+规则：
+- 1-2个单词 → vocabulary
+- 2-5个单词的短语 → collocation  
+- 超过5个单词或完整句子 → sentence
+
+请严格按以下JSON格式返回（不要返回其他内容）：
+{
+  "type": "vocabulary|collocation|sentence",
+  "data": {
+    // vocabulary: {"word":"...", "definition":"中文释义", "partOfSpeech":"词性", "example":"例句"}
+    // collocation: {"phrase":"...", "definition":"中文释义", "example":"例句"}
+    // sentence: {"sentence":"...", "analysis":"为什么值得学习", "scenario":"适用场景如writing/speaking"}
+  },
+  "priority": "high|medium|low"
+}`
+        },
+        { role: 'user', content: text.trim() }
+      ],
+      response_format: { type: 'json_object' },
+    });
+
+    const raw = response.choices[0]?.message?.content;
+    if (!raw) return res.status(502).json({ error: 'AI 返回空响应' });
+
+    let parsed: any;
+    try { parsed = JSON.parse(raw); } catch { return res.status(502).json({ error: 'AI 返回格式异常' }); }
+
+    const type = parsed.type;
+    const data = parsed.data;
+    const priority = parsed.priority || 'medium';
+
+    if (!VALID_TYPES.includes(type)) return res.status(502).json({ error: 'AI 返回了无效的类型' });
+
     const result = await query(
       'INSERT INTO extractions (material_id, type, data, priority, mastered) VALUES (?, ?, ?, ?, ?)',
-      materialId, type, JSON.stringify(data), priority || 'medium', 0
+      materialId, type, JSON.stringify(data), priority, 0
     );
     const row = await queryOne('SELECT * FROM extractions WHERE id = ?', result.lastInsertRowid);
     return res.status(201).json(mapRow(row));
-  } catch { return res.status(500).json({ error: '服务器内部错误' }); }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : '服务器内部错误';
+    return res.status(500).json({ error: msg });
+  }
 });
 
 router.patch('/:id/mastery', async (req, res) => {
