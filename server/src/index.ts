@@ -16,19 +16,19 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// Simple password auth middleware
-const ACCESS_PASSWORD = process.env.ACCESS_PASSWORD || '';
-
+// Simple password auth middleware — read dynamically each time
 app.use('/api', (req, res, next) => {
+  const accessPassword = process.env.ACCESS_PASSWORD || '';
+  
   // Health check is public
   if (req.path === '/health') return next();
   // Auth verify endpoint is public
   if (req.path === '/auth/verify') return next();
 
-  if (!ACCESS_PASSWORD) return next(); // No password set = no auth required
+  if (!accessPassword) return next(); // No password set = no auth required
 
   const token = req.headers['x-access-token'] as string;
-  if (token !== ACCESS_PASSWORD) {
+  if (token !== accessPassword) {
     return res.status(401).json({ error: '访问密码错误' });
   }
   next();
@@ -40,11 +40,12 @@ app.get('/api/health', (_req, res) => {
 
 // Verify password endpoint
 app.post('/api/auth/verify', (req, res) => {
-  if (!ACCESS_PASSWORD) {
+  const accessPassword = process.env.ACCESS_PASSWORD || '';
+  if (!accessPassword) {
     return res.json({ valid: true });
   }
   const { password } = req.body;
-  if (password === ACCESS_PASSWORD) {
+  if (password === accessPassword) {
     return res.json({ valid: true });
   }
   return res.status(401).json({ valid: false, error: '密码错误' });
@@ -62,7 +63,9 @@ app.get('*', (_req, res) => {
 });
 
 app.listen(PORT, () => {
+  const hasPassword = !!process.env.ACCESS_PASSWORD;
   console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`Auth: ${hasPassword ? 'password required' : 'no password (open access)'}`);
 });
 
 export default app;
