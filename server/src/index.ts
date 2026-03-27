@@ -66,6 +66,7 @@ app.listen(PORT, () => {
   const hasPassword = !!process.env.ACCESS_PASSWORD;
   console.log(`Server running on http://localhost:${PORT}`);
   console.log(`Auth: ${hasPassword ? 'password required' : 'no password (open access)'}`);
+  console.log(`ENV keys containing ACCESS: ${Object.keys(process.env).filter(k => k.includes('ACCESS')).join(', ') || 'none'}`);
 });
 
 export default app;
