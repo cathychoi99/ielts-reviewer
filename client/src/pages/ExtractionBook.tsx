@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import type { Extraction, ExtractionType, MasteryStatus, SourceTag } from '../../../shared/types';
-import { getExtractions, updateMastery } from '../api';
+import { getExtractions, updateMastery, deleteExtraction } from '../api';
 import ExtractionCard from '../components/ExtractionCard';
 import { Link } from 'react-router-dom';
 
@@ -58,6 +58,15 @@ export default function ExtractionBook() {
       setExtractions((prev) =>
         prev.map((e) => (e.id === id ? { ...e, mastered: updated.mastered } : e)),
       );
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    try {
+      await deleteExtraction(id);
+      setExtractions((prev) => prev.filter((e) => e.id !== id));
     } catch {
       // ignore
     }
@@ -158,6 +167,7 @@ export default function ExtractionBook() {
               <ExtractionCard
                 extraction={ext}
                 onToggleMastery={handleToggleMastery}
+                onDelete={handleDelete}
                 showSource
               />
               {ext.materialId && (

@@ -8,6 +8,7 @@ import type {
 interface Props {
   extraction: Extraction;
   onToggleMastery?: (id: number, mastered: boolean) => void;
+  onDelete?: (id: number) => void;
   showSource?: boolean;
 }
 
@@ -23,7 +24,7 @@ const PRIORITY_LABELS: Record<string, string> = {
   low: 'LOW',
 };
 
-export default function ExtractionCard({ extraction, onToggleMastery, showSource }: Props) {
+export default function ExtractionCard({ extraction, onToggleMastery, onDelete, showSource }: Props) {
   const { type, data, priority, mastered, id } = extraction;
 
   return (
@@ -40,19 +41,29 @@ export default function ExtractionCard({ extraction, onToggleMastery, showSource
             </span>
           )}
         </div>
-        {onToggleMastery && (
-          <button
-            onClick={() => onToggleMastery(id, !mastered)}
-            className={[
-              'font-mono text-[10px] uppercase tracking-[1px] font-medium px-3 py-1 border transition-colors',
-              mastered
-                ? 'border-border text-text-tertiary hover:text-text-primary'
-                : 'border-dark bg-dark text-white hover:bg-dark/80',
-            ].join(' ')}
-          >
-            {mastered ? '取消掌握' : '标记已掌握'}
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {onDelete && (
+            <button
+              onClick={() => onDelete(id)}
+              className="font-mono text-[10px] uppercase tracking-[1px] font-medium px-3 py-1 text-text-quaternary hover:text-red-500 transition-colors"
+            >
+              删除
+            </button>
+          )}
+          {onToggleMastery && (
+            <button
+              onClick={() => onToggleMastery(id, !mastered)}
+              className={[
+                'font-mono text-[10px] uppercase tracking-[1px] font-medium px-3 py-1 border transition-colors',
+                mastered
+                  ? 'border-border text-text-tertiary hover:text-text-primary'
+                  : 'border-dark bg-dark text-white hover:bg-dark/80',
+              ].join(' ')}
+            >
+              {mastered ? '取消掌握' : '标记已掌握'}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Body — varies by type */}

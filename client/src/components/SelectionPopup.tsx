@@ -25,9 +25,10 @@ export default function SelectionPopup({ materialId, containerRef, onAdded }: Pr
         if (text && text.length > 0 && !saving) {
           const range = selection!.getRangeAt(0);
           const rect = range.getBoundingClientRect();
+          const containerRect = container.getBoundingClientRect();
           setPos({
-            x: rect.left + rect.width / 2 + window.scrollX,
-            y: rect.top + window.scrollY - 8,
+            x: rect.left + rect.width / 2 - containerRect.left,
+            y: rect.top - containerRect.top - 8,
           });
           setSelectedText(text);
           setShow(true);

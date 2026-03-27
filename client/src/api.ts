@@ -113,6 +113,10 @@ export function updateMastery(id: number, mastered: boolean): Promise<Extraction
   });
 }
 
+export function deleteExtraction(id: number): Promise<void> {
+  return request<void>(`/extractions/${id}`, { method: 'DELETE' });
+}
+
 export function createExtraction(data: {
   materialId: number;
   text: string;

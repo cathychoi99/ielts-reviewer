@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import type { MaterialDetail as MaterialDetailType, Extraction, ExtractionType } from '../../../shared/types';
-import { getMaterial, getMaterialExtractions, parseMaterial, updateMastery } from '../api';
+import { getMaterial, getMaterialExtractions, parseMaterial, updateMastery, deleteExtraction } from '../api';
 import ExtractionCard from '../components/ExtractionCard';
 import SelectionPopup from '../components/SelectionPopup';
 import { highlightText } from '../utils/highlight';
@@ -98,6 +98,15 @@ export default function MaterialDetail() {
       setExtractions((prev) =>
         prev.map((e) => (e.id === extId ? { ...e, mastered: updated.mastered } : e)),
       );
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleDelete = async (extId: number) => {
+    try {
+      await deleteExtraction(extId);
+      setExtractions((prev) => prev.filter((e) => e.id !== extId));
     } catch {
       // ignore
     }
@@ -247,6 +256,7 @@ export default function MaterialDetail() {
                   key={ext.id}
                   extraction={ext}
                   onToggleMastery={handleToggleMastery}
+                  onDelete={handleDelete}
                 />
               ))}
             </div>

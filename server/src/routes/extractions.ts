@@ -80,13 +80,15 @@ router.post('/', async (req, res) => {
 - 2-5个单词的短语 → collocation  
 - 超过5个单词或完整句子 → sentence
 
+所有字段必须使用英文填写（definition、example、analysis、scenario等全部用英文）。
+
 请严格按以下JSON格式返回（不要返回其他内容）：
 {
   "type": "vocabulary|collocation|sentence",
   "data": {
-    // vocabulary: {"word":"...", "definition":"中文释义", "partOfSpeech":"词性", "example":"例句"}
-    // collocation: {"phrase":"...", "definition":"中文释义", "example":"例句"}
-    // sentence: {"sentence":"...", "analysis":"为什么值得学习", "scenario":"适用场景如writing/speaking"}
+    // vocabulary: {"word":"...", "definition":"English definition", "partOfSpeech":"part of speech", "example":"example sentence"}
+    // collocation: {"phrase":"...", "definition":"English definition", "example":"example sentence"}
+    // sentence: {"sentence":"...", "analysis":"why it is worth learning", "scenario":"applicable scenario e.g. writing/speaking"}
   },
   "priority": "high|medium|low"
 }`
@@ -129,6 +131,15 @@ router.patch('/:id/mastery', async (req, res) => {
     await query('UPDATE extractions SET mastered = ? WHERE id = ?', mastered ? 1 : 0, req.params.id);
     const updated = await queryOne('SELECT * FROM extractions WHERE id = ?', req.params.id);
     return res.json(mapRow(updated));
+  } catch { return res.status(500).json({ error: '服务器内部错误' }); }
+});
+
+router.delete('/:id', async (req, res) => {
+  try {
+    const row = await queryOne('SELECT * FROM extractions WHERE id = ?', req.params.id);
+    if (!row) return res.status(404).json({ error: '资源不存在' });
+    await query('DELETE FROM extractions WHERE id = ?', req.params.id);
+    return res.status(204).end();
   } catch { return res.status(500).json({ error: '服务器内部错误' }); }
 });
 
