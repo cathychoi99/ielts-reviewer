@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import type { Extraction, VocabularyData, CollocationData } from '../../../shared/types';
+import type { Extraction, VocabularyData, CollocationData, SentenceData } from '../../../shared/types';
 
 /**
  * Takes original text + vocabulary/collocation extractions and returns
@@ -16,6 +16,8 @@ export function highlightText(
       terms.push((ext.data as VocabularyData).word);
     } else if (ext.type === 'collocation') {
       terms.push((ext.data as CollocationData).phrase);
+    } else if (ext.type === 'sentence') {
+      terms.push((ext.data as SentenceData).sentence);
     }
   }
 
