@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import settingsRouter from './routes/settings.js';
 import materialsRouter from './routes/materials.js';
 import extractionsRouter from './routes/extractions.js';
+import { initDatabase } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -62,11 +63,17 @@ app.get('*', (_req, res) => {
   res.sendFile(path.join(clientDist, 'index.html'));
 });
 
-app.listen(PORT, () => {
-  const hasPassword = !!process.env.ACCESS_PASSWORD;
-  console.log(`Server running on http://localhost:${PORT}`);
-  console.log(`Auth: ${hasPassword ? 'password required' : 'no password (open access)'}`);
-  console.log(`ENV keys containing ACCESS: ${Object.keys(process.env).filter(k => k.includes('ACCESS')).join(', ') || 'none'}`);
+// Initialize Turso database then start server
+initDatabase().then(() => {
+  app.listen(PORT, () => {
+    const hasPassword = !!process.env.ACCESS_PASSWORD;
+    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Auth: ${hasPassword ? 'password required' : 'no password (open access)'}`);
+    console.log(`Database: Turso cloud`);
+  });
+}).catch((err) => {
+  console.error('Failed to initialize database:', err);
+  process.exit(1);
 });
 
 export default app;

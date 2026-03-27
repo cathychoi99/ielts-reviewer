@@ -1,31 +1,33 @@
-import Database from 'better-sqlite3';
-import path from 'node:path';
-import fs from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { createClient, type Client, type ResultSet } from '@libsql/client';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const TURSO_URL = process.env.TURSO_DATABASE_URL || 'libsql://ielts-reviewer-cathychoi99.aws-ap-northeast-1.turso.io';
+const TURSO_TOKEN = process.env.TURSO_AUTH_TOKEN || '';
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
-const DB_PATH = path.join(DATA_DIR, 'ielts.db');
+let _client: Client | null = null;
 
-function ensureDataDir(): void {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
+export function getClient(): Client {
+  if (!_client) {
+    _client = createClient({
+      url: TURSO_URL,
+      authToken: TURSO_TOKEN,
+    });
   }
+  return _client;
 }
 
-function createTables(db: Database.Database): void {
-  db.exec(`
+export async function initDatabase(): Promise<void> {
+  const client = getClient();
+
+  await client.execute(`
     CREATE TABLE IF NOT EXISTS settings (
       id INTEGER PRIMARY KEY,
       band_level TEXT NOT NULL DEFAULT '6.0',
       api_key TEXT NOT NULL DEFAULT '',
       api_base_url TEXT NOT NULL DEFAULT 'https://api.deepseek.com'
-    );
+    )
   `);
 
-  db.exec(`
+  await client.execute(`
     CREATE TABLE IF NOT EXISTS materials (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL,
@@ -33,10 +35,10 @@ function createTables(db: Database.Database): void {
       content TEXT NOT NULL,
       parse_status TEXT NOT NULL DEFAULT 'idle',
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
+    )
   `);
 
-  db.exec(`
+  await client.execute(`
     CREATE TABLE IF NOT EXISTS extractions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       material_id INTEGER NOT NULL,
@@ -46,42 +48,26 @@ function createTables(db: Database.Database): void {
       mastered INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE CASCADE
-    );
+    )
   `);
 
-  // Insert default settings row if not exists
-  const row = db.prepare('SELECT id FROM settings WHERE id = 1').get();
-  if (!row) {
-    db.prepare(
+  // Insert default settings if not exists
+  const row = await client.execute('SELECT id FROM settings WHERE id = 1');
+  if (row.rows.length === 0) {
+    await client.execute(
       `INSERT INTO settings (id, band_level, api_key, api_base_url) VALUES (1, '6.0', '', 'https://api.deepseek.com')`
-    ).run();
+    );
   }
 }
 
-export function initDatabase(dbPath?: string): Database.Database {
-  if (!dbPath) {
-    ensureDataDir();
-  }
-  const db = new Database(dbPath ?? DB_PATH);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
-  createTables(db);
-  return db;
+// Helper to run a query and return rows
+export async function query(sql: string, ...params: unknown[]): Promise<ResultSet> {
+  const client = getClient();
+  return client.execute({ sql, args: params as any });
 }
 
-// Singleton instance for the application
-let _db: Database.Database | null = null;
-
-export function getDatabase(): Database.Database {
-  if (!_db) {
-    _db = initDatabase();
-  }
-  return _db;
-}
-
-export function closeDatabase(): void {
-  if (_db) {
-    _db.close();
-    _db = null;
-  }
+// Helper to run a query and return first row
+export async function queryOne(sql: string, ...params: unknown[]): Promise<Record<string, unknown> | null> {
+  const result = await query(sql, ...params);
+  return result.rows.length > 0 ? (result.rows[0] as unknown as Record<string, unknown>) : null;
 }

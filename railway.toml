@@ -2,7 +2,7 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "ACCESS_PASSWORD=9299 npm start"
+startCommand = "ACCESS_PASSWORD=9299 TURSO_DATABASE_URL=libsql://ielts-reviewer-cathychoi99.aws-ap-northeast-1.turso.io TURSO_AUTH_TOKEN=eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3NzQ2MDE2NzcsImlkIjoiMDE5ZDJlODAtMjMwMS03YTU1LWI2MzUtODcyOGYyYWNlOGExIiwicmlkIjoiYTZiYTA3ZTQtYTViYS00M2Q5LWJhZmYtODFlNjIzZDE1ZmFiIn0.xMtbWhvYGE7hc3LFnB3NiMCkG3vemQjk1q0sNL_c6RBbT_p4EpWDW8tdTdnF3ZyhKz3txaSDme6-axyVE6prBg npm start"
 
 [build.env]
 NODE_ENV = "production"
