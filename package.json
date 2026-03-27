@@ -4,8 +4,11 @@
   "engines": {
     "node": ">=22"
   },
+  "dependencies": {
+    "tsx": "^4.0.0"
+  },
   "scripts": {
     "build": "cd client && npm ci && npm run build && cd ../server && npm ci",
-    "start": "node --import tsx server/src/index.ts"
+    "start": "cd server && node --import tsx src/index.ts"
   }
 }
