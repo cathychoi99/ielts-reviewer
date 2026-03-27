@@ -17,12 +17,39 @@ router.post('/', async (req, res) => {
 
     const result = await query(
       'INSERT INTO materials (title, source_tag, content, parse_status) VALUES (?, ?, ?, ?)',
-      title.trim(), sourceTag, content, 'idle'
+      title.trim(), sourceTag, content, 'parsing'
     );
     const row = await queryOne('SELECT * FROM materials WHERE id = ?', result.lastInsertRowid);
+    const matId = (row as any).id;
+
+    // Auto-parse in background
+    (async () => {
+      try {
+        const settings = await queryOne('SELECT band_level, api_key, api_base_url FROM settings WHERE id = 1');
+        if (!(settings as any)?.api_key) {
+          await query('UPDATE materials SET parse_status = ? WHERE id = ?', 'idle', matId);
+          return;
+        }
+        const rawResponse = await parseContent(
+          content, (settings as any).band_level as BandLevel,
+          (settings as any).api_key, (settings as any).api_base_url,
+        );
+        const extractions = Parser.parse(rawResponse);
+        for (const ext of extractions) {
+          await query(
+            'INSERT INTO extractions (material_id, type, data, priority, mastered) VALUES (?, ?, ?, ?, ?)',
+            matId, ext.type, JSON.stringify(ext.data), ext.priority, ext.mastered ? 1 : 0,
+          );
+        }
+        await query('UPDATE materials SET parse_status = ? WHERE id = ?', 'done', matId);
+      } catch {
+        await query('UPDATE materials SET parse_status = ? WHERE id = ?', 'error', matId).catch(() => {});
+      }
+    })();
+
     return res.status(201).json({
-      id: (row as any).id, title: (row as any).title, sourceTag: (row as any).source_tag,
-      content: (row as any).content, parseStatus: (row as any).parse_status, createdAt: (row as any).created_at,
+      id: matId, title: (row as any).title, sourceTag: (row as any).source_tag,
+      content: (row as any).content, parseStatus: 'parsing', createdAt: (row as any).created_at,
     });
   } catch { return res.status(500).json({ error: '服务器内部错误' }); }
 });
