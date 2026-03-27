@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+/* Editorial Financial Light Theme */
+@theme {
+  --color-page: #F4F2EF;
+  --color-dark: #1E1E1E;
+  --color-navy: #384F84;
+  --color-gold: #C8B496;
+  --color-border: #E5E0D8;
+  --color-text-primary: #1A1A1A;
+  --color-text-secondary: #4A4A4A;
+  --color-text-tertiary: #666666;
+  --color-text-quaternary: #777777;
+
+  --font-serif: 'Playfair Display', Georgia, serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, Consolas, monospace;
+  --font-sans: 'Geist', system-ui, -apple-system, sans-serif;
+
+  --radius-none: 0px;
+}
+
+/* Zero border-radius globally */
+@layer base {
+  *, *::before, *::after {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+}
+
+/* Base styles */
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background-color: var(--color-page);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  min-height: 100svh;
+}
+
+/* 1px ruled lines for structure */
+hr, .ruled {
+  border: none;
+  border-top: 1px solid var(--color-border);
+}
