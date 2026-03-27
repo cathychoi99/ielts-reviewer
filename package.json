@@ -1,6 +1,9 @@
 {
   "name": "ielts-material-reviewer",
   "private": true,
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "cd client && npm install && npm run build && cd ../server && npm install",
     "start": "cd server && node --import tsx src/index.ts"
