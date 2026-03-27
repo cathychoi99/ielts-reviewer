@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import type { MaterialDetail as MaterialDetailType, Extraction, ExtractionType } from '../../../shared/types';
 import { getMaterial, getMaterialExtractions, parseMaterial, updateMastery } from '../api';
@@ -22,6 +22,7 @@ const TAG_LABELS: Record<string, string> = {
 
 export default function MaterialDetail() {
   const { id } = useParams<{ id: string }>();
+  const textContainerRef = useRef<HTMLDivElement>(null);
   const [material, setMaterial] = useState<MaterialDetailType | null>(null);
   const [extractions, setExtractions] = useState<Extraction[]>([]);
   const [tab, setTab] = useState<'text' | 'extractions'>('text');
@@ -210,8 +211,8 @@ export default function MaterialDetail() {
 
       {/* Tab content */}
       {tab === 'text' ? (
-        <div className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap relative">
-          <SelectionPopup materialId={Number(id)} onAdded={loadData} />
+        <div ref={textContainerRef} className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap relative">
+          <SelectionPopup materialId={Number(id)} containerRef={textContainerRef} onAdded={loadData} />
           {extractions.length > 0
             ? highlightText(material.content, extractions)
             : material.content}

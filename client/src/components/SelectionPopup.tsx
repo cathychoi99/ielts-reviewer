@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { ExtractionType } from '../../../shared/types';
 import { createExtraction } from '../api';
 
 interface Props {
   materialId: number;
+  containerRef: React.RefObject<HTMLDivElement | null>;
   onAdded?: () => void;
 }
 
@@ -13,46 +14,63 @@ const TYPE_OPTIONS: { value: ExtractionType; label: string }[] = [
   { value: 'sentence', label: '句子' },
 ];
 
-export default function SelectionPopup({ materialId, onAdded }: Props) {
+export default function SelectionPopup({ materialId, containerRef, onAdded }: Props) {
   const [show, setShow] = useState(false);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const [selectedText, setSelectedText] = useState('');
   const [showTypeMenu, setShowTypeMenu] = useState(false);
   const [saving, setSaving] = useState(false);
-
-  const handleMouseUp = useCallback(() => {
-    const selection = window.getSelection();
-    const text = selection?.toString().trim();
-    if (text && text.length > 0) {
-      const range = selection!.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
-      setPos({ x: rect.left + rect.width / 2, y: rect.top - 10 });
-      setSelectedText(text);
-      setShow(true);
-      setShowTypeMenu(false);
-    } else {
-      setShow(false);
-    }
-  }, []);
-
-  const handleMouseDown = useCallback(() => {
-    // Small delay to not interfere with the popup click
-    setTimeout(() => {
-      const selection = window.getSelection();
-      if (!selection || selection.toString().trim().length === 0) {
-        setShow(false);
-      }
-    }, 200);
-  }, []);
+  const popupRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    document.addEventListener('mouseup', handleMouseUp);
-    document.addEventListener('mousedown', handleMouseDown);
-    return () => {
-      document.removeEventListener('mouseup', handleMouseUp);
-      document.removeEventListener('mousedown', handleMouseDown);
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleMouseUp = () => {
+      // Delay slightly to let selection finalize
+      requestAnimationFrame(() => {
+        const selection = window.getSelection();
+        const text = selection?.toString().trim();
+        if (text && text.length > 0) {
+          const range = selection!.getRangeAt(0);
+          const rect = range.getBoundingClientRect();
+          setPos({
+            x: rect.left + rect.width / 2 + window.scrollX,
+            y: rect.top + window.scrollY - 8,
+          });
+          setSelectedText(text);
+          setShow(true);
+          setShowTypeMenu(false);
+        }
+      });
     };
-  }, [handleMouseUp, handleMouseDown]);
+
+    container.addEventListener('mouseup', handleMouseUp);
+    container.addEventListener('touchend', handleMouseUp);
+
+    return () => {
+      container.removeEventListener('mouseup', handleMouseUp);
+      container.removeEventListener('touchend', handleMouseUp);
+    };
+  }, [containerRef]);
+
+  // Close popup when clicking outside
+  useEffect(() => {
+    if (!show) return;
+    const handleClick = (e: MouseEvent) => {
+      if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
+        setShow(false);
+      }
+    };
+    // Delay adding listener so the current mouseup doesn't immediately close it
+    const timer = setTimeout(() => {
+      document.addEventListener('mousedown', handleClick);
+    }, 100);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('mousedown', handleClick);
+    };
+  }, [show]);
 
   const handleAddAs = async (type: ExtractionType) => {
     setSaving(true);
@@ -80,13 +98,15 @@ export default function SelectionPopup({ materialId, onAdded }: Props) {
 
   return (
     <div
-      className="fixed z-50"
+      ref={popupRef}
+      className="absolute z-50"
       style={{ left: pos.x, top: pos.y, transform: 'translate(-50%, -100%)' }}
     >
       {!showTypeMenu ? (
         <button
-          onClick={(e) => { e.stopPropagation(); setShowTypeMenu(true); }}
-          className="bg-dark text-white font-mono text-[10px] uppercase tracking-[1.5px] font-medium px-4 py-2 shadow-lg whitespace-nowrap"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => setShowTypeMenu(true)}
+          className="bg-dark text-white font-mono text-[10px] uppercase tracking-[1.5px] font-medium px-4 py-2 whitespace-nowrap"
           style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
         >
           + 添加到摘录
@@ -99,7 +119,8 @@ export default function SelectionPopup({ materialId, onAdded }: Props) {
           {TYPE_OPTIONS.map((opt) => (
             <button
               key={opt.value}
-              onClick={(e) => { e.stopPropagation(); handleAddAs(opt.value); }}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => handleAddAs(opt.value)}
               disabled={saving}
               className="px-4 py-2 text-left font-mono text-[10px] uppercase tracking-[1.5px] font-medium text-text-secondary hover:bg-page hover:text-dark transition-colors disabled:opacity-50 whitespace-nowrap"
             >
