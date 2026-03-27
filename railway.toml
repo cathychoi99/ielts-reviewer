@@ -2,7 +2,7 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "npm start"
+startCommand = "ACCESS_PASSWORD=9299 npm start"
 
 [build.env]
 NODE_ENV = "production"
