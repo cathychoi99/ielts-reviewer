@@ -27,7 +27,7 @@ export default function NavBar() {
                   isActive
                     ? 'text-dark border-b-2 border-dark'
                     : 'text-text-tertiary hover:text-text-primary',
-                  i > 0 ? 'border-l border-border' : '',
+                  i > 0 ? '' : '',
                 ].join(' ')
               }
             >
@@ -48,7 +48,7 @@ export default function NavBar() {
               [
                 'flex-1 flex items-center justify-center py-3 font-mono text-[10px] uppercase tracking-[1.5px] font-medium transition-colors',
                 isActive ? 'text-dark bg-dark/5' : 'text-text-tertiary',
-                i > 0 ? 'border-l border-border' : '',
+                i > 0 ? '' : '',
               ].join(' ')
             }
           >

@@ -198,7 +198,7 @@ export default function MaterialDetail() {
         <button
           onClick={() => setTab('extractions')}
           className={[
-            'font-mono text-xs uppercase tracking-[2px] font-medium px-5 py-3 transition-colors border-l border-border',
+            'font-mono text-xs uppercase tracking-[2px] font-medium px-5 py-3 transition-colors',
             tab === 'extractions'
               ? 'text-dark border-b-2 border-dark'
               : 'text-text-tertiary hover:text-text-primary',
