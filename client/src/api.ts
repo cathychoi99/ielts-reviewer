@@ -113,6 +113,18 @@ export function updateMastery(id: number, mastered: boolean): Promise<Extraction
   });
 }
 
+export function createExtraction(data: {
+  materialId: number;
+  type: 'vocabulary' | 'collocation' | 'sentence';
+  data: Record<string, string>;
+  priority?: string;
+}): Promise<Extraction> {
+  return request<Extraction>('/extractions', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
 export function getReviewCards(params: ReviewParams): Promise<Extraction[]> {
   const qs = new URLSearchParams();
   if (params.materialId) qs.set('materialId', String(params.materialId));

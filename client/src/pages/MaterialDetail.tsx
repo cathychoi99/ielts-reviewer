@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import type { MaterialDetail as MaterialDetailType, Extraction, ExtractionType } from '../../../shared/types';
 import { getMaterial, getMaterialExtractions, parseMaterial, updateMastery } from '../api';
 import ExtractionCard from '../components/ExtractionCard';
+import SelectionPopup from '../components/SelectionPopup';
 import { highlightText } from '../utils/highlight';
 
 const TYPE_FILTERS: { value: ExtractionType | 'all'; label: string }[] = [
@@ -209,7 +210,8 @@ export default function MaterialDetail() {
 
       {/* Tab content */}
       {tab === 'text' ? (
-        <div className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap">
+        <div className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap relative">
+          <SelectionPopup materialId={Number(id)} onAdded={loadData} />
           {extractions.length > 0
             ? highlightText(material.content, extractions)
             : material.content}

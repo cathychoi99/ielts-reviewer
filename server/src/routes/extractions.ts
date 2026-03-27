@@ -45,6 +45,26 @@ router.get('/', async (req, res) => {
   } catch { return res.status(500).json({ error: '服务器内部错误' }); }
 });
 
+// POST /api/extractions — manual extraction creation
+router.post('/', async (req, res) => {
+  try {
+    const { materialId, type, data, priority } = req.body;
+    if (!materialId) return res.status(400).json({ error: 'materialId 不能为空' });
+    if (!type || !VALID_TYPES.includes(type)) return res.status(400).json({ error: '无效的摘录类型' });
+    if (!data) return res.status(400).json({ error: 'data 不能为空' });
+
+    const mat = await queryOne('SELECT id FROM materials WHERE id = ?', materialId);
+    if (!mat) return res.status(404).json({ error: '材料不存在' });
+
+    const result = await query(
+      'INSERT INTO extractions (material_id, type, data, priority, mastered) VALUES (?, ?, ?, ?, ?)',
+      materialId, type, JSON.stringify(data), priority || 'medium', 0
+    );
+    const row = await queryOne('SELECT * FROM extractions WHERE id = ?', result.lastInsertRowid);
+    return res.status(201).json(mapRow(row));
+  } catch { return res.status(500).json({ error: '服务器内部错误' }); }
+});
+
 router.patch('/:id/mastery', async (req, res) => {
   try {
     const { mastered } = req.body;
