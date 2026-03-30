@@ -4,20 +4,46 @@ interface Props {
   text: string;
 }
 
+// Split text into chunks at sentence boundaries, max ~800 chars each
+function splitIntoChunks(text: string): string[] {
+  const sentences = text.match(/[^.!?]+[.!?]+[\s]*/g) || [text];
+  const chunks: string[] = [];
+  let current = '';
+  for (const s of sentences) {
+    if (current.length + s.length > 800 && current.length > 0) {
+      chunks.push(current.trim());
+      current = s;
+    } else {
+      current += s;
+    }
+  }
+  if (current.trim()) chunks.push(current.trim());
+  return chunks;
+}
+
+function getEnglishVoice(): SpeechSynthesisVoice | undefined {
+  const voices = speechSynthesis.getVoices();
+  return (
+    voices.find((v) => v.lang.startsWith('en') && /samantha|karen|victoria|zira|hazel/i.test(v.name)) ||
+    voices.find((v) => v.lang.startsWith('en') && v.name.toLowerCase().includes('female')) ||
+    voices.find((v) => v.lang.startsWith('en-US'))
+  );
+}
+
 export default function AudioPlayer({ text }: Props) {
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [totalTime, setTotalTime] = useState(0);
-  const utterRef = useRef<SpeechSynthesisUtterance | null>(null);
   const startTimeRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
-  const charIndexRef = useRef(0);
+  const chunkIndexRef = useRef(0);
+  const chunksRef = useRef<string[]>([]);
+  const cancelledRef = useRef(false);
 
-  // Estimate total duration: ~150 words/min for English
   const estimateDuration = useCallback(() => {
     const words = text.split(/\s+/).length;
-    return (words / 150) * 60; // seconds
+    return (words / 150) * 60;
   }, [text]);
 
   const stopTimer = useCallback(() => {
@@ -37,9 +63,37 @@ export default function AudioPlayer({ text }: Props) {
     }, 200);
   }, [estimateDuration, stopTimer]);
 
+  const speakChunk = useCallback((chunks: string[], index: number, voice: SpeechSynthesisVoice | undefined) => {
+    if (cancelledRef.current || index >= chunks.length) {
+      stopTimer();
+      setPlaying(false);
+      if (!cancelledRef.current) {
+        const total = estimateDuration();
+        setProgress(100);
+        setCurrentTime(total);
+      }
+      return;
+    }
+    const utter = new SpeechSynthesisUtterance(chunks[index]);
+    utter.lang = 'en-US';
+    utter.rate = 1;
+    if (voice) utter.voice = voice;
+
+    utter.onend = () => {
+      chunkIndexRef.current = index + 1;
+      speakChunk(chunks, index + 1, voice);
+    };
+    utter.onerror = () => {
+      stopTimer();
+      setPlaying(false);
+    };
+
+    speechSynthesis.speak(utter);
+  }, [estimateDuration, stopTimer]);
+
   const handlePlay = useCallback(() => {
     if (playing) {
-      // Pause
+      cancelledRef.current = true;
       speechSynthesis.cancel();
       stopTimer();
       setPlaying(false);
@@ -47,52 +101,24 @@ export default function AudioPlayer({ text }: Props) {
     }
 
     speechSynthesis.cancel();
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.lang = 'en-US';
-    utter.rate = 1;
-
-    // Try to pick a good English female voice
-    const voices = speechSynthesis.getVoices();
-    const preferred = voices.find(
-      (v) => v.lang.startsWith('en') && v.name.toLowerCase().includes('female'),
-    ) || voices.find(
-      (v) => v.lang.startsWith('en-US') && v.name.toLowerCase().includes('samantha'),
-    ) || voices.find(
-      (v) => v.lang.startsWith('en') && /samantha|karen|victoria|zira|hazel/i.test(v.name),
-    ) || voices.find((v) => v.lang.startsWith('en-US'));
-    if (preferred) utter.voice = preferred;
+    cancelledRef.current = false;
+    const chunks = splitIntoChunks(text);
+    chunksRef.current = chunks;
+    chunkIndexRef.current = 0;
 
     const total = estimateDuration();
     setTotalTime(total);
-
-    utter.onstart = () => {
-      startTimeRef.current = Date.now();
-      startTimer();
-    };
-    utter.onboundary = (e) => {
-      charIndexRef.current = e.charIndex;
-      const pct = (e.charIndex / text.length) * 100;
-      setProgress(pct);
-    };
-    utter.onend = () => {
-      stopTimer();
-      setPlaying(false);
-      setProgress(100);
-      setCurrentTime(total);
-    };
-    utter.onerror = () => {
-      stopTimer();
-      setPlaying(false);
-    };
-
-    utterRef.current = utter;
-    speechSynthesis.speak(utter);
+    startTimeRef.current = Date.now();
+    startTimer();
     setPlaying(true);
-    setTotalTime(total);
-  }, [playing, text, estimateDuration, startTimer, stopTimer]);
+
+    const voice = getEnglishVoice();
+    speakChunk(chunks, 0, voice);
+  }, [playing, text, estimateDuration, startTimer, stopTimer, speakChunk]);
 
   useEffect(() => {
     return () => {
+      cancelledRef.current = true;
       speechSynthesis.cancel();
       stopTimer();
     };
