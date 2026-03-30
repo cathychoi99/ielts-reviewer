@@ -46,6 +46,11 @@ export default function MaterialDetail() {
       setExtractions(exts);
       if (mat.parseStatus === 'parsing') setParsing(true);
       else setParsing(false);
+      // Auto-show translations if previously translated
+      if (mat.translation && mat.translation.length > 0) {
+        setTranslations(mat.translation);
+        setShowTranslation(true);
+      }
     } catch {
       // ignore
     } finally {

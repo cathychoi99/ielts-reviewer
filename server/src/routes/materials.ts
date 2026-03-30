@@ -159,6 +159,9 @@ router.post('/:id/translate', async (req, res) => {
     const translations = Array.isArray(parsed) ? parsed : (parsed.translations || parsed.result || Object.values(parsed)[0]);
     if (!Array.isArray(translations)) return res.status(502).json({ error: 'AI 返回格式异常' });
 
+    // Save to DB
+    await query('UPDATE materials SET translation = ? WHERE id = ?', JSON.stringify(translations), req.params.id);
+
     return res.json({ translations });
   } catch (err) {
     const msg = err instanceof Error ? err.message : '服务器内部错误';
@@ -175,6 +178,7 @@ router.get('/:id', async (req, res) => {
       id: (row as any).id, title: (row as any).title, sourceTag: (row as any).source_tag,
       content: (row as any).content, parseStatus: (row as any).parse_status,
       createdAt: (row as any).created_at, extractionCount: (count as any).count,
+      translation: (row as any).translation ? JSON.parse((row as any).translation) : null,
     });
   } catch { return res.status(500).json({ error: '服务器内部错误' }); }
 });

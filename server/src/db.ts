@@ -58,6 +58,13 @@ export async function initDatabase(): Promise<void> {
       `INSERT INTO settings (id, band_level, api_key, api_base_url) VALUES (1, '6.0', '', 'https://api.deepseek.com')`
     );
   }
+
+  // Migration: add translation column if missing
+  try {
+    await client.execute(`ALTER TABLE materials ADD COLUMN translation TEXT`);
+  } catch {
+    // column already exists
+  }
 }
 
 // Helper to run a query and return rows

@@ -23,6 +23,7 @@ export interface Material {
 
 export interface MaterialDetail extends Material {
   content: string;
+  translation?: string[] | null;
 }
 
 // --- Extraction Data Types ---
