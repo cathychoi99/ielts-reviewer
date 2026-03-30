@@ -4,6 +4,7 @@ import type { MaterialDetail as MaterialDetailType, Extraction, ExtractionType }
 import { getMaterial, getMaterialExtractions, parseMaterial, updateMastery, deleteExtraction, deleteMaterial, translateMaterial } from '../api';
 import ExtractionCard from '../components/ExtractionCard';
 import SelectionPopup from '../components/SelectionPopup';
+import AudioPlayer from '../components/AudioPlayer';
 import { highlightText } from '../utils/highlight';
 
 const TYPE_FILTERS: { value: ExtractionType | 'all'; label: string }[] = [
@@ -194,6 +195,7 @@ export default function MaterialDetail() {
         >
           删除材料
         </button>
+        <AudioPlayer text={material.content} />
       </div>
 
       {/* Parse controls */}
