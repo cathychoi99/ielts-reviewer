@@ -260,6 +260,15 @@ export default function MaterialDetail() {
       {/* Tab content */}
       {tab === 'text' ? (
         <div>
+          <div className="mb-4">
+            <button
+              onClick={handleTranslate}
+              disabled={translating}
+              className="font-mono text-[10px] uppercase tracking-[1.5px] font-medium px-4 py-2 border border-border text-text-secondary hover:text-text-primary transition-colors disabled:opacity-70"
+            >
+              {translating ? '翻译中...' : showTranslation ? '关闭翻译' : '开启翻译'}
+            </button>
+          </div>
           <div ref={textContainerRef} className="text-sm text-text-primary leading-relaxed relative">
             <SelectionPopup materialId={Number(id)} containerRef={textContainerRef} onAdded={loadData} />
             {(() => {
@@ -278,13 +287,6 @@ export default function MaterialDetail() {
               ));
             })()}
           </div>
-          <button
-            onClick={handleTranslate}
-            disabled={translating}
-            className="mt-4 font-mono text-[10px] uppercase tracking-[1.5px] font-medium px-4 py-2 border border-border text-text-secondary hover:text-text-primary transition-colors disabled:opacity-70"
-          >
-            {translating ? '翻译中...' : showTranslation ? '关闭翻译' : '开启翻译'}
-          </button>
         </div>
       ) : (
         <div>
