@@ -63,10 +63,11 @@ export default function MaterialDetail() {
     loadData();
   }, [loadData]);
 
-  // Poll while parsing
+  // Poll while parsing — also reload on first load if status is parsing
   useEffect(() => {
     if (!parsing || !id) return;
-    const interval = setInterval(async () => {
+    // Immediately check once
+    const check = async () => {
       try {
         const mat = await getMaterial(Number(id));
         setMaterial(mat);
@@ -74,11 +75,17 @@ export default function MaterialDetail() {
           setParsing(false);
           const exts = await getMaterialExtractions(Number(id));
           setExtractions(exts);
+          if (mat.translation && mat.translation.length > 0) {
+            setTranslations(mat.translation);
+            setShowTranslation(true);
+          }
         }
       } catch {
         // ignore
       }
-    }, 2000);
+    };
+    check();
+    const interval = setInterval(check, 3000);
     return () => clearInterval(interval);
   }, [parsing, id]);
 
