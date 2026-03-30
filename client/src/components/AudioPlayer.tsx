@@ -49,7 +49,7 @@ export default function AudioPlayer({ text }: Props) {
     speechSynthesis.cancel();
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = 'en-US';
-    utter.rate = 0.9;
+    utter.rate = 1;
 
     // Try to pick a good English female voice
     const voices = speechSynthesis.getVoices();
