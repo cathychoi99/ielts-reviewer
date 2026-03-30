@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import type { MaterialDetail as MaterialDetailType, Extraction, ExtractionType } from '../../../shared/types';
-import { getMaterial, getMaterialExtractions, parseMaterial, updateMastery, deleteExtraction, deleteMaterial } from '../api';
+import { getMaterial, getMaterialExtractions, parseMaterial, updateMastery, deleteExtraction, deleteMaterial, translateMaterial } from '../api';
 import ExtractionCard from '../components/ExtractionCard';
 import SelectionPopup from '../components/SelectionPopup';
 import { highlightText } from '../utils/highlight';
@@ -31,6 +31,9 @@ export default function MaterialDetail() {
   const [loading, setLoading] = useState(true);
   const [parsing, setParsing] = useState(false);
   const [parseError, setParseError] = useState('');
+  const [translations, setTranslations] = useState<string[] | null>(null);
+  const [translating, setTranslating] = useState(false);
+  const [showTranslation, setShowTranslation] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!id) return;
@@ -121,6 +124,24 @@ export default function MaterialDetail() {
       navigate('/');
     } catch {
       // ignore
+    }
+  };
+
+  const handleTranslate = async () => {
+    if (translations) {
+      setShowTranslation((v) => !v);
+      return;
+    }
+    if (!id || translating) return;
+    setTranslating(true);
+    setShowTranslation(true);
+    try {
+      const res = await translateMaterial(Number(id));
+      setTranslations(res.translations);
+    } catch {
+      setShowTranslation(false);
+    } finally {
+      setTranslating(false);
     }
   };
 
@@ -238,11 +259,32 @@ export default function MaterialDetail() {
 
       {/* Tab content */}
       {tab === 'text' ? (
-        <div ref={textContainerRef} className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap relative">
-          <SelectionPopup materialId={Number(id)} containerRef={textContainerRef} onAdded={loadData} />
-          {extractions.length > 0
-            ? highlightText(material.content, extractions)
-            : material.content}
+        <div>
+          <div ref={textContainerRef} className="text-sm text-text-primary leading-relaxed relative">
+            <SelectionPopup materialId={Number(id)} containerRef={textContainerRef} onAdded={loadData} />
+            {(() => {
+              const paragraphs = material.content.split(/\n\s*\n/).filter((p) => p.trim().length > 0);
+              return paragraphs.map((para, i) => (
+                <div key={i} className="mb-4">
+                  <p className="whitespace-pre-wrap">
+                    {extractions.length > 0 ? highlightText(para, extractions) : para}
+                  </p>
+                  {showTranslation && (
+                    <p className="mt-1 text-text-tertiary text-xs leading-relaxed italic">
+                      {translations ? translations[i] ?? '' : (translating ? '...' : '')}
+                    </p>
+                  )}
+                </div>
+              ));
+            })()}
+          </div>
+          <button
+            onClick={handleTranslate}
+            disabled={translating}
+            className="mt-4 font-mono text-[10px] uppercase tracking-[1.5px] font-medium px-4 py-2 border border-border text-text-secondary hover:text-text-primary transition-colors disabled:opacity-70"
+          >
+            {translating ? '翻译中...' : showTranslation ? '关闭翻译' : '开启翻译'}
+          </button>
         </div>
       ) : (
         <div>

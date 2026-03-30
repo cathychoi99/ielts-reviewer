@@ -86,6 +86,10 @@ export function parseMaterial(id: number): Promise<void> {
   return request<void>(`/materials/${id}/parse`, { method: 'POST' });
 }
 
+export function translateMaterial(id: number): Promise<{ translations: string[] }> {
+  return request<{ translations: string[] }>(`/materials/${id}/translate`, { method: 'POST' });
+}
+
 export function getMaterialExtractions(
   id: number,
   filter?: ExtractionFilter,
