@@ -4,7 +4,6 @@ interface Props {
   text: string;
 }
 
-// Split text into chunks at sentence boundaries, max ~800 chars each
 function splitIntoChunks(text: string): string[] {
   const sentences = text.match(/[^.!?]+[.!?]+[\s]*/g) || [text];
   const chunks: string[] = [];
@@ -34,14 +33,14 @@ export default function AudioPlayer({ text }: Props) {
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
-  const [totalTime, setTotalTime] = useState(0);
   const startTimeRef = useRef(0);
+  const timeOffsetRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
-  const chunkIndexRef = useRef(0);
   const chunksRef = useRef<string[]>([]);
   const cancelledRef = useRef(false);
+  const barRef = useRef<HTMLDivElement>(null);
 
-  const estimateDuration = useCallback(() => {
+  const totalDuration = useCallback(() => {
     const words = text.split(/\s+/).length;
     return (words / 150) * 60;
   }, [text]);
@@ -56,21 +55,20 @@ export default function AudioPlayer({ text }: Props) {
   const startTimer = useCallback(() => {
     stopTimer();
     timerRef.current = setInterval(() => {
-      const elapsed = (Date.now() - startTimeRef.current) / 1000;
-      const total = estimateDuration();
+      const elapsed = timeOffsetRef.current + (Date.now() - startTimeRef.current) / 1000;
+      const total = totalDuration();
       setCurrentTime(Math.min(elapsed, total));
       setProgress(Math.min((elapsed / total) * 100, 100));
     }, 200);
-  }, [estimateDuration, stopTimer]);
+  }, [totalDuration, stopTimer]);
 
   const speakChunk = useCallback((chunks: string[], index: number, voice: SpeechSynthesisVoice | undefined) => {
     if (cancelledRef.current || index >= chunks.length) {
       stopTimer();
       setPlaying(false);
       if (!cancelledRef.current) {
-        const total = estimateDuration();
         setProgress(100);
-        setCurrentTime(total);
+        setCurrentTime(totalDuration());
       }
       return;
     }
@@ -78,18 +76,39 @@ export default function AudioPlayer({ text }: Props) {
     utter.lang = 'en-US';
     utter.rate = 1;
     if (voice) utter.voice = voice;
-
-    utter.onend = () => {
-      chunkIndexRef.current = index + 1;
-      speakChunk(chunks, index + 1, voice);
-    };
-    utter.onerror = () => {
-      stopTimer();
-      setPlaying(false);
-    };
-
+    utter.onend = () => speakChunk(chunks, index + 1, voice);
+    utter.onerror = () => { stopTimer(); setPlaying(false); };
     speechSynthesis.speak(utter);
-  }, [estimateDuration, stopTimer]);
+  }, [totalDuration, stopTimer]);
+
+  // Get chunk index and time offset for a given progress percentage
+  const getChunkForProgress = useCallback((pct: number) => {
+    const chunks = chunksRef.current.length > 0 ? chunksRef.current : splitIntoChunks(text);
+    const totalChars = chunks.reduce((s, c) => s + c.length, 0);
+    const targetChar = (pct / 100) * totalChars;
+    let acc = 0;
+    for (let i = 0; i < chunks.length; i++) {
+      if (acc + chunks[i].length >= targetChar) return { index: i, chunks };
+      acc += chunks[i].length;
+    }
+    return { index: chunks.length - 1, chunks };
+  }, [text]);
+
+  const startFromChunk = useCallback((chunks: string[], index: number, pct: number) => {
+    speechSynthesis.cancel();
+    cancelledRef.current = false;
+    chunksRef.current = chunks;
+    const total = totalDuration();
+    const seekTime = (pct / 100) * total;
+    timeOffsetRef.current = seekTime;
+    startTimeRef.current = Date.now();
+    setCurrentTime(seekTime);
+    setProgress(pct);
+    startTimer();
+    setPlaying(true);
+    const voice = getEnglishVoice();
+    speakChunk(chunks, index, voice);
+  }, [totalDuration, startTimer, speakChunk]);
 
   const handlePlay = useCallback(() => {
     if (playing) {
@@ -99,22 +118,30 @@ export default function AudioPlayer({ text }: Props) {
       setPlaying(false);
       return;
     }
-
-    speechSynthesis.cancel();
-    cancelledRef.current = false;
     const chunks = splitIntoChunks(text);
-    chunksRef.current = chunks;
-    chunkIndexRef.current = 0;
+    startFromChunk(chunks, 0, 0);
+  }, [playing, text, stopTimer, startFromChunk]);
 
-    const total = estimateDuration();
-    setTotalTime(total);
-    startTimeRef.current = Date.now();
-    startTimer();
-    setPlaying(true);
+  const handleSeek = useCallback((e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
+    const bar = barRef.current;
+    if (!bar) return;
+    const rect = bar.getBoundingClientRect();
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const pct = Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100));
+    const { index, chunks } = getChunkForProgress(pct);
 
-    const voice = getEnglishVoice();
-    speakChunk(chunks, 0, voice);
-  }, [playing, text, estimateDuration, startTimer, stopTimer, speakChunk]);
+    if (playing) {
+      startFromChunk(chunks, index, pct);
+    } else {
+      // Just update position, will start from here on next play
+      const total = totalDuration();
+      setProgress(pct);
+      setCurrentTime((pct / 100) * total);
+      chunksRef.current = chunks;
+      // Auto-play from seek position
+      startFromChunk(chunks, index, pct);
+    }
+  }, [playing, getChunkForProgress, startFromChunk, totalDuration]);
 
   useEffect(() => {
     return () => {
@@ -130,7 +157,7 @@ export default function AudioPlayer({ text }: Props) {
     return `${m}:${sec.toString().padStart(2, '0')}`;
   };
 
-  const total = totalTime || estimateDuration();
+  const total = totalDuration();
 
   return (
     <div className="flex items-center gap-3 py-2">
@@ -141,9 +168,14 @@ export default function AudioPlayer({ text }: Props) {
         {playing ? '暂停' : '播放'}
       </button>
       <div className="flex-1 flex items-center gap-2">
-        <div className="flex-1 h-1 bg-border rounded-full overflow-hidden">
+        <div
+          ref={barRef}
+          className="flex-1 h-2 bg-border rounded-full overflow-hidden cursor-pointer relative"
+          onClick={handleSeek}
+          onTouchStart={handleSeek}
+        >
           <div
-            className="h-full bg-navy transition-all duration-200"
+            className="h-full bg-navy rounded-full transition-all duration-200"
             style={{ width: `${progress}%` }}
           />
         </div>
