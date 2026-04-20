@@ -54,25 +54,54 @@ export async function parseContent(
   const client = new OpenAI({
     apiKey,
     baseURL: apiBaseUrl,
-    timeout: 30_000,
+    timeout: 60_000,
   });
 
-  try {
-    const response = await client.chat.completions.create({
-      model: 'deepseek-chat',
-      messages: [
-        { role: 'system', content: buildSystemPrompt(bandLevel) },
-        { role: 'user', content },
-      ],
-      response_format: { type: 'json_object' },
-    });
+  // Split long content into chunks of ~3000 chars at paragraph boundaries
+  const paragraphs = content.split(/\n\s*\n/).filter((p) => p.trim().length > 0);
+  const chunks: string[] = [];
+  let current = '';
+  for (const p of paragraphs) {
+    if (current.length + p.length > 3000 && current.length > 0) {
+      chunks.push(current.trim());
+      current = p;
+    } else {
+      current += (current ? '\n\n' : '') + p;
+    }
+  }
+  if (current.trim()) chunks.push(current.trim());
 
-    const result = response.choices[0]?.message?.content;
-    if (!result) {
-      throw new Error('AI 返回空响应');
+  const allExtractions: any[] = [];
+
+  try {
+    for (const chunk of chunks) {
+      const response = await client.chat.completions.create({
+        model: 'deepseek-chat',
+        messages: [
+          { role: 'system', content: buildSystemPrompt(bandLevel) },
+          { role: 'user', content: chunk },
+        ],
+        response_format: { type: 'json_object' },
+      });
+
+      const result = response.choices[0]?.message?.content;
+      if (!result) continue;
+
+      try {
+        const parsed = JSON.parse(result);
+        if (parsed.extractions && Array.isArray(parsed.extractions)) {
+          allExtractions.push(...parsed.extractions);
+        }
+      } catch {
+        // skip malformed chunk result
+      }
     }
 
-    return result;
+    if (allExtractions.length === 0) {
+      throw new Error('AI 未返回任何摘录');
+    }
+
+    return JSON.stringify({ extractions: allExtractions });
   } catch (err) {
     if (err instanceof Error && 'statusCode' in err) {
       throw err;

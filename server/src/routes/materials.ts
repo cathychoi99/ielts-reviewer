@@ -135,34 +135,42 @@ router.post('/:id/translate', async (req, res) => {
     const paragraphs = content.split(/\n\s*\n/).filter((p: string) => p.trim().length > 0);
 
     const OpenAI = (await import('openai')).default;
-    const client = new OpenAI({ apiKey, baseURL: apiBaseUrl, timeout: 30_000 });
+    const client = new OpenAI({ apiKey, baseURL: apiBaseUrl, timeout: 60_000 });
 
-    const response = await client.chat.completions.create({
-      model: 'deepseek-chat',
-      messages: [
-        {
-          role: 'system',
-          content: `你是一个翻译助手。用户会给你一组英文段落（JSON数组），请将每个段落翻译成中文。返回一个JSON数组，每个元素是对应段落的中文翻译。数组长度必须和输入一致。只返回JSON数组，不要返回其他内容。`
-        },
-        { role: 'user', content: JSON.stringify(paragraphs) }
-      ],
-      response_format: { type: 'json_object' },
-    });
+    // Translate in batches of 10 paragraphs to avoid token limits
+    const BATCH_SIZE = 10;
+    const allTranslations: string[] = [];
 
-    const raw = response.choices[0]?.message?.content;
-    if (!raw) return res.status(502).json({ error: 'AI 返回空响应' });
+    for (let i = 0; i < paragraphs.length; i += BATCH_SIZE) {
+      const batch = paragraphs.slice(i, i + BATCH_SIZE);
+      const response = await client.chat.completions.create({
+        model: 'deepseek-chat',
+        messages: [
+          {
+            role: 'system',
+            content: `你是一个翻译助手。用户会给你一组英文段落（JSON数组），请将每个段落翻译成中文。返回一个JSON对象，格式为 {"translations": ["翻译1", "翻译2", ...]}。数组长度必须和输入一致。`
+          },
+          { role: 'user', content: JSON.stringify(batch) }
+        ],
+        response_format: { type: 'json_object' },
+      });
 
-    let parsed: any;
-    try { parsed = JSON.parse(raw); } catch { return res.status(502).json({ error: 'AI 返回格式异常' }); }
+      const raw = response.choices[0]?.message?.content;
+      if (!raw) return res.status(502).json({ error: 'AI 返回空响应' });
 
-    // Handle both array and object with translations key
-    const translations = Array.isArray(parsed) ? parsed : (parsed.translations || parsed.result || Object.values(parsed)[0]);
-    if (!Array.isArray(translations)) return res.status(502).json({ error: 'AI 返回格式异常' });
+      let parsed: any;
+      try { parsed = JSON.parse(raw); } catch { return res.status(502).json({ error: 'AI 返回格式异常' }); }
+
+      const translations = Array.isArray(parsed) ? parsed : (parsed.translations || parsed.result || Object.values(parsed)[0]);
+      if (!Array.isArray(translations)) return res.status(502).json({ error: 'AI 返回格式异常' });
+
+      allTranslations.push(...translations);
+    }
 
     // Save to DB
-    await query('UPDATE materials SET translation = ? WHERE id = ?', JSON.stringify(translations), req.params.id);
+    await query('UPDATE materials SET translation = ? WHERE id = ?', JSON.stringify(allTranslations), req.params.id);
 
-    return res.json({ translations });
+    return res.json({ translations: allTranslations });
   } catch (err) {
     const msg = err instanceof Error ? err.message : '服务器内部错误';
     return res.status(500).json({ error: msg });
