@@ -96,28 +96,29 @@ router.post('/:id/parse', async (req, res) => {
     const settings = await queryOne('SELECT band_level, api_key, api_base_url FROM settings WHERE id = 1');
     await query('UPDATE materials SET parse_status = ? WHERE id = ?', 'parsing', (mat as any).id);
 
-    try {
-      const rawResponse = await parseContent(
-        (mat as any).content, (settings as any).band_level as BandLevel,
-        (settings as any).api_key, (settings as any).api_base_url,
-      );
-      const extractions = Parser.parse(rawResponse);
-      await query('DELETE FROM extractions WHERE material_id = ?', (mat as any).id);
-      for (const ext of extractions) {
-        await query(
-          'INSERT INTO extractions (material_id, type, data, priority, mastered) VALUES (?, ?, ?, ?, ?)',
-          (mat as any).id, ext.type, JSON.stringify(ext.data), ext.priority, ext.mastered ? 1 : 0,
+    // Return immediately, parse in background
+    res.json({ message: '解析已开始' });
+
+    const matId = (mat as any).id;
+    (async () => {
+      try {
+        const rawResponse = await parseContent(
+          (mat as any).content, (settings as any).band_level as BandLevel,
+          (settings as any).api_key, (settings as any).api_base_url,
         );
+        const extractions = Parser.parse(rawResponse);
+        await query('DELETE FROM extractions WHERE material_id = ?', matId);
+        for (const ext of extractions) {
+          await query(
+            'INSERT INTO extractions (material_id, type, data, priority, mastered) VALUES (?, ?, ?, ?, ?)',
+            matId, ext.type, JSON.stringify(ext.data), ext.priority, ext.mastered ? 1 : 0,
+          );
+        }
+        await query('UPDATE materials SET parse_status = ? WHERE id = ?', 'done', matId);
+      } catch {
+        await query('UPDATE materials SET parse_status = ? WHERE id = ?', 'error', matId).catch(() => {});
       }
-      await query('UPDATE materials SET parse_status = ? WHERE id = ?', 'done', (mat as any).id);
-      return res.json({ message: '解析完成', extractionCount: extractions.length });
-    } catch (err) {
-      await query('UPDATE materials SET parse_status = ? WHERE id = ?', 'error', (mat as any).id);
-      const statusCode = (err as any).statusCode;
-      if (statusCode === 422) return res.status(422).json({ error: (err as Error).message });
-      if (statusCode === 502) return res.status(502).json({ error: (err as Error).message });
-      return res.status(502).json({ error: 'AI 返回数据格式异常' });
-    }
+    })();
   } catch { return res.status(500).json({ error: '服务器内部错误' }); }
 });
 
@@ -126,51 +127,62 @@ router.post('/:id/translate', async (req, res) => {
     const mat = await queryOne('SELECT * FROM materials WHERE id = ?', req.params.id);
     if (!mat) return res.status(404).json({ error: '资源不存在' });
 
+    // If already translated, return cached
+    if ((mat as any).translation) {
+      return res.json({ translations: JSON.parse((mat as any).translation) });
+    }
+
     const settings = await queryOne('SELECT api_key, api_base_url FROM settings WHERE id = 1');
     const apiKey = (settings as any)?.api_key;
     const apiBaseUrl = (settings as any)?.api_base_url;
     if (!apiKey) return res.status(422).json({ error: '请先在设置中配置 AI API Key' });
 
+    // Return immediately, translate in background
+    res.json({ translations: null, status: 'translating' });
+
+    const matId = (mat as any).id;
     const content = (mat as any).content as string;
-    const paragraphs = content.split(/\n\s*\n/).filter((p: string) => p.trim().length > 0);
 
-    const OpenAI = (await import('openai')).default;
-    const client = new OpenAI({ apiKey, baseURL: apiBaseUrl, timeout: 60_000 });
+    (async () => {
+      try {
+        const paragraphs = content.split(/\n\s*\n/).filter((p: string) => p.trim().length > 0);
+        const OpenAI = (await import('openai')).default;
+        const client = new OpenAI({ apiKey, baseURL: apiBaseUrl, timeout: 60_000 });
 
-    // Translate in batches of 10 paragraphs to avoid token limits
-    const BATCH_SIZE = 10;
-    const allTranslations: string[] = [];
+        const BATCH_SIZE = 10;
+        const allTranslations: string[] = [];
 
-    for (let i = 0; i < paragraphs.length; i += BATCH_SIZE) {
-      const batch = paragraphs.slice(i, i + BATCH_SIZE);
-      const response = await client.chat.completions.create({
-        model: 'deepseek-chat',
-        messages: [
-          {
-            role: 'system',
-            content: `你是一个翻译助手。用户会给你一组英文段落（JSON数组），请将每个段落翻译成中文。返回一个JSON对象，格式为 {"translations": ["翻译1", "翻译2", ...]}。数组长度必须和输入一致。`
-          },
-          { role: 'user', content: JSON.stringify(batch) }
-        ],
-        response_format: { type: 'json_object' },
-      });
+        for (let i = 0; i < paragraphs.length; i += BATCH_SIZE) {
+          const batch = paragraphs.slice(i, i + BATCH_SIZE);
+          const response = await client.chat.completions.create({
+            model: 'deepseek-chat',
+            messages: [
+              {
+                role: 'system',
+                content: `你是一个翻译助手。用户会给你一组英文段落（JSON数组），请将每个段落翻译成中文。返回一个JSON对象，格式为 {"translations": ["翻译1", "翻译2", ...]}。数组长度必须和输入一致。`
+              },
+              { role: 'user', content: JSON.stringify(batch) }
+            ],
+            response_format: { type: 'json_object' },
+          });
 
-      const raw = response.choices[0]?.message?.content;
-      if (!raw) return res.status(502).json({ error: 'AI 返回空响应' });
+          const raw = response.choices[0]?.message?.content;
+          if (!raw) continue;
 
-      let parsed: any;
-      try { parsed = JSON.parse(raw); } catch { return res.status(502).json({ error: 'AI 返回格式异常' }); }
+          let parsed: any;
+          try { parsed = JSON.parse(raw); } catch { continue; }
 
-      const translations = Array.isArray(parsed) ? parsed : (parsed.translations || parsed.result || Object.values(parsed)[0]);
-      if (!Array.isArray(translations)) return res.status(502).json({ error: 'AI 返回格式异常' });
+          const translations = Array.isArray(parsed) ? parsed : (parsed.translations || parsed.result || Object.values(parsed)[0]);
+          if (Array.isArray(translations)) allTranslations.push(...translations);
+        }
 
-      allTranslations.push(...translations);
-    }
-
-    // Save to DB
-    await query('UPDATE materials SET translation = ? WHERE id = ?', JSON.stringify(allTranslations), req.params.id);
-
-    return res.json({ translations: allTranslations });
+        if (allTranslations.length > 0) {
+          await query('UPDATE materials SET translation = ? WHERE id = ?', JSON.stringify(allTranslations), matId);
+        }
+      } catch {
+        // translation failed silently
+      }
+    })();
   } catch (err) {
     const msg = err instanceof Error ? err.message : '服务器内部错误';
     return res.status(500).json({ error: msg });

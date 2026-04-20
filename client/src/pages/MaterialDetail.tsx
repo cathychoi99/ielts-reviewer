@@ -150,10 +150,31 @@ export default function MaterialDetail() {
     setShowTranslation(true);
     try {
       const res = await translateMaterial(Number(id));
-      setTranslations(res.translations);
+      if (res.translations) {
+        setTranslations(res.translations);
+        setTranslating(false);
+      } else {
+        // Translation is processing in background, poll for results
+        const poll = setInterval(async () => {
+          try {
+            const mat = await getMaterial(Number(id));
+            if (mat.translation && mat.translation.length > 0) {
+              setTranslations(mat.translation);
+              setTranslating(false);
+              clearInterval(poll);
+            }
+          } catch {
+            // keep polling
+          }
+        }, 3000);
+        // Stop polling after 5 minutes
+        setTimeout(() => {
+          clearInterval(poll);
+          setTranslating(false);
+        }, 300000);
+      }
     } catch {
       setShowTranslation(false);
-    } finally {
       setTranslating(false);
     }
   };
