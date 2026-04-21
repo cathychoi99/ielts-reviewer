@@ -12,6 +12,7 @@ export default function Settings() {
   const [message, setMessage] = useState('');
 
   useEffect(() => {
+    document.title = '设置 - IELTS Reviewer';
     getSettings()
       .then((s) => {
         setBandLevel(s.bandLevel);

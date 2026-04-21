@@ -47,6 +47,8 @@ export default function MaterialDetail() {
       setExtractions(exts);
       if (mat.parseStatus === 'parsing') setParsing(true);
       else setParsing(false);
+      // Set page title
+      document.title = `${mat.title} - IELTS Reviewer`;
       // Auto-show translations if previously translated
       if (mat.translation && mat.translation.length > 0) {
         setTranslations(mat.translation);

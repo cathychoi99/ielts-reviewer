@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { SourceTag } from '../../../shared/types';
 import { createMaterial, parseMaterial } from '../api';
@@ -14,6 +14,8 @@ const SOURCE_TAGS: { value: SourceTag; label: string }[] = [
 export default function AddMaterial() {
   const navigate = useNavigate();
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { document.title = '添加材料 - IELTS Reviewer'; }, []);
 
   const [title, setTitle] = useState('');
   const [sourceTag, setSourceTag] = useState<SourceTag>('article');

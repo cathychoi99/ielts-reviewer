@@ -25,6 +25,7 @@ export default function ReviewMode() {
   const [totalCards, setTotalCards] = useState(0);
 
   useEffect(() => {
+    document.title = '复习模式 - IELTS Reviewer';
     getMaterials().then(setMaterials).catch(() => {});
   }, []);
 

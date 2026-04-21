@@ -49,6 +49,7 @@ export default function ExtractionBook() {
   }, [typeFilter, statusFilter, tagFilter]);
 
   useEffect(() => {
+    document.title = '摘录本 - IELTS Reviewer';
     loadExtractions();
   }, [loadExtractions]);
 

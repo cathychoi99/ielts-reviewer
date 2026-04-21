@@ -15,6 +15,7 @@ export default function MaterialLibrary() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    document.title = '材料库 - IELTS Reviewer';
     getMaterials()
       .then(setMaterials)
       .catch(() => {})
